@@ -1,0 +1,21 @@
+{
+    "watch": [
+        "dist"
+    ],
+    "ext": "js",
+    "ignore": [
+        "src",
+        "logs",
+        "node_modules",
+        "tests",
+        "coverage",
+        "*.test.js",
+        "*.spec.js"
+    ],
+    "delay": 1000,
+    "verbose": false,
+    "restartable": "rs",
+    "env": {
+        "NODE_ENV": "development"
+    }
+}

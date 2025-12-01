@@ -1,0 +1,219 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["public", "payload"]
+}
+
+// ==================== User Management ====================
+model User {
+  id        String   @id @db.Uuid
+  email     String   @unique
+  fullName  String   @map("full_name")
+  phone     String?
+  avatarUrl String?  @map("avatar_url")
+  role      UserRole @default(STUDENT)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  enrollments Enrollment[]
+  carts       Cart[]
+  orders      Order[]
+
+  @@map("users")
+  @@schema("public")
+}
+
+enum UserRole {
+  ADMIN      @map("ADMIN")
+  INSTRUCTOR @map("INSTRUCTOR")
+  STUDENT    @map("STUDENT")
+
+  @@map("user_role")
+  @@schema("public")
+}
+
+// ==================== Course Management ====================
+
+enum CourseStatus {
+  true   @map("true")
+  false  @map("false")
+
+  @@map("enum_courses_course_status")
+  @@schema("payload")
+}
+
+// Connected directly to payload.courses table
+model Course {
+  id                        String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  coursesTitle              String        @map("courses_title")
+  date                      DateTime?     @map("courses_date") @db.Timestamptz(6)
+  normalPrice               Decimal       @map("normal_price") @db.Decimal
+  earlyBirdPricePrice       Decimal?      @map("early_bird_price_price") @db.Decimal
+  earlyBirdPriceStartDate   DateTime?     @map("early_bird_price_start_date") @db.Timestamptz(6)
+  earlyBirdPriceEndDate     DateTime?     @map("early_bird_price_end_date") @db.Timestamptz(6)
+  courseStatus              CourseStatus? @default(false) @map("course_status")
+  createdAt                 DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  enrollments Enrollment[]
+  cartItems   CartItem[]
+  orderItems  OrderItem[]
+  courseDetailRels  CourseDetailRels[]
+
+  @@map("courses")
+  @@schema("payload")
+}
+
+// Connected directly to payload.course_detail table
+model CourseDetail {
+  id               String   @id @db.Uuid
+  titleText        String?  @map("title_text")
+  courseBenefit    String?  @map("course_benefit")
+  classType        String?  @map("class_type")
+  totalTimesCourse Int?     @map("total_times_course")
+  totalClass       Int?     @map("total_class")
+  updatedAt        DateTime @map("updated_at") @db.Timestamptz(6)
+  createdAt        DateTime @map("created_at") @db.Timestamptz(6)
+
+  courseDetailRels CourseDetailRels[]
+
+  @@map("course_detail")
+  @@schema("payload")
+}
+
+// Relation table between course_detail and courses
+model CourseDetailRels {
+  id            Int     @id @default(autoincrement())
+  order         Int?
+  parentId      String? @map("parent_id") @db.Uuid
+  path          String
+  coursesId     String? @map("courses_id") @db.Uuid
+
+  courseDetail CourseDetail? @relation(fields: [parentId], references: [id])
+  course       Course?       @relation(fields: [coursesId], references: [id])
+
+  @@map("course_detail_rels")
+  @@schema("payload")
+}
+
+// ==================== Enrollment Management ====================
+model Enrollment {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  courseId  String    @map("course_id") @db.Uuid
+  paymentId String?   @map("payment_id") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  payment Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, courseId])
+  @@schema("public")
+  @@map("enrollment")
+}
+
+// ==================== Order Management ====================
+model Order {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  subtotalAmount Decimal    @map("subtotal_amount") @db.Decimal
+  totalAmount    Decimal    @map("total_amount") @db.Decimal
+  orderStatus    String     @map("order_status")
+  couponId       String?    @map("coupon_id")
+  userId         String     @map("user_id") @db.Uuid
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+  payments   Payment[]
+
+  @@schema("public")
+  @@map("Order")
+}
+
+model OrderItem {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  courseId  String   @map("course_id") @db.Uuid
+  orderId   String   @map("order_id") @db.Uuid
+  unitPrice Decimal  @map("unit_price") @db.Decimal
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  order  Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@schema("public")
+  @@map("order_item")
+}
+
+// ==================== Payment Management ====================
+model Payment {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  paymentType   String    @map("payment_type")
+  status        String    @map("payment_status")
+  orderId       String?   @map("order_id") @db.Uuid
+  omiseChargeId String?   @map("omise_charge_id")
+  slipImage     String?   @map("slip_image")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  order   Order?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  enrollments Enrollment[]
+
+  @@schema("public")
+  @@map("payment")
+}
+
+// ==================== Coupon Management ====================
+model Coupon {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code           String    @unique
+  type           String
+  discount       Decimal   @db.Decimal
+  minOrderAmount Decimal?  @map("min_order_amount") @db.Decimal
+  maxDiscount    Decimal?  @map("max_discount") @db.Decimal
+  usageLimit     Decimal?  @map("usage_limit") @db.Decimal
+  usageCount     Decimal   @default(0) @map("usage_count") @db.Decimal
+  status         String
+  startDate      DateTime? @map("start_date") @db.Timestamptz(6)
+  expireDate     DateTime? @map("expire_date") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@schema("public")
+  @@map("coupons")
+}
+
+// ==================== Cart Management ====================
+model Cart {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user      String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  userRelation User       @relation(fields: [user], references: [id])
+  cartItems    CartItem[]
+
+  @@map("cart")
+  @@schema("public")
+}
+
+model CartItem {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cartId    String   @map("cart_id") @db.Uuid
+  coursesId String   @map("courses_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  cart           Cart   @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  courseRelation Course @relation(fields: [coursesId], references: [id])
+
+  @@unique([cartId, coursesId])
+  @@map("cart_item")
+  @@schema("public")
+}
